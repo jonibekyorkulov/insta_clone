@@ -6,10 +6,11 @@ from shared.models import BaseModel
 from datetime import datetime, timedelta
 from django.core.validators import FileExtensionValidator
 import random
+from rest_framework_simplejwt.tokens import RefreshToken
 # Create your models here.
 ORDINARY_USER, MANAGER, ADMIN = ('ordinary_user', 'manager', 'admin')
 VIA_EMAIL, VIA_PHONE = ('via_email', 'via_phone')
-NEW, CODE_VERIFIED, DONE, PHOTO_STEP = ('new', 'code_verified', 'done', 'photo_step')
+NEW, CODE_VERIFIED, DONE, PHOTO_DONE = ('new', 'code_verified', 'done', 'photo_done')
 
 class User(AbstractUser, BaseModel):
     USER_ROLES = (
@@ -25,7 +26,7 @@ class User(AbstractUser, BaseModel):
         (NEW, NEW),
         (CODE_VERIFIED, CODE_VERIFIED),
         (DONE, DONE),
-        (PHOTO_STEP, PHOTO_STEP)
+        (PHOTO_DONE, PHOTO_DONE)
     )
     user_roles = models.CharField(max_length=50, choices=USER_ROLES, default=ORDINARY_USER)
     auth_type = models.CharField(max_length=50, choices=AUTH_TYPE_CHOICES)
@@ -33,7 +34,7 @@ class User(AbstractUser, BaseModel):
     email = models.EmailField(null=True, blank=True, unique=True)
     phone_number = models.CharField(max_length=13, null=True,blank=True, unique=True)
     photo = models.ImageField(upload_to='user_photo/', null=True, blank=True,
-                         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'pnd', 'heic', 'heif'])]
+                         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'png', 'heic', 'heif'])]
                               )
 
     def __str__(self):
@@ -75,7 +76,24 @@ class User(AbstractUser, BaseModel):
             self.set_password(self.password)
 
     def token(self):
-        pass
+        refresh = RefreshToken.for_user(self)
+        return {
+            "access": str(refresh.access_token),
+            "refresh_token": str(refresh)
+        }
+
+    def clean(self):
+        self.check_email()
+        self.check_username()
+        self.check_pass()
+        self.hashing_password()
+
+    def save(self, *args, **kwargs):
+
+        self.clean()
+        super(User, self).save(*args, **kwargs)
+
+
 
 PHONE_EXPIRE = 2
 EMAIL_EXPIRE = 5
@@ -94,11 +112,10 @@ class UserConfirmation(BaseModel):
         return str(self.user.__str__())
 
     def save(self, *args, **kwargs):
-        if not self.pk:
-            if self.verify_type == VIA_EMAIL:
-                self.expiration_time = datetime.now() + timedelta(minutes=EMAIL_EXPIRE)
-            elif self.verify_type == VIA_PHONE:
-                self.expiration_time = datetime.now() + timedelta(minutes=PHONE_EXPIRE)
-            else:
-                self.expiration_time = 0
+        if self.verify_type == VIA_EMAIL:
+            self.expiration_time = datetime.now() + timedelta(minutes=EMAIL_EXPIRE)
+        elif self.verify_type == VIA_PHONE:
+            self.expiration_time = datetime.now() + timedelta(minutes=PHONE_EXPIRE)
+        else:
+            self.expiration_time = 0
         super(UserConfirmation, self).save(*args, **kwargs)
