@@ -15,21 +15,22 @@ class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = UserSerializer(read_only=True)
     post_likes_count = serializers.SerializerMethodField('get_post_likes_count')
-    post_comments_like = serializers.SerializerMethodField('get_post_comments_count')
+    post_comments_count = serializers.SerializerMethodField('get_post_comments_count')
     me_liked = serializers.SerializerMethodField('get_me_liked')
 
     class Meta:
         model = Post
-        fields = [
+        fields = (
             'id',
             'author',
             'image',
             'caption',
             'created_time',
             'post_likes_count',
-            'post_comments_like',
+            'post_comments_count',
             'me_liked'
-        ]
+        )
+        extra_kwargs = {"image" : {"required": False}}
 
     @staticmethod
     def get_post_likes_count(obj):
@@ -64,6 +65,7 @@ class CommentSerializer(serializers.ModelSerializer):
             'id',
             'author',
             'comment',
+            'post',
             'parent',
             'created_time',
             'replies',
